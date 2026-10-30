@@ -1,0 +1,14 @@
+{
+  "mall": {
+    "available": 5,
+    "total": 10
+  },
+  "hospital": {
+    "available": 2,
+    "total": 8
+  },
+  "dmart": {
+    "available": 0,
+    "total": 12
+  }
+}

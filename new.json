@@ -1,0 +1,5 @@
+{
+  "mall": { "available": 2, "total": 2 },
+  "hospital": { "available": 2, "total": 2 },
+  "dmart": { "available": 2, "total": 2 }
+}

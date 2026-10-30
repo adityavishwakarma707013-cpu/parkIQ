@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ParkiQ Smart Map</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase.js"></script>
+
+  <style>
+    #map {
+      height: 100vh;
+    }
+
+    .popup-btn {
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: green;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .loc-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      padding: 8px 12px;
+      background: blue;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+<button class="loc-btn" onclick="goToMyLocation()">📍 My Location</button>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+// 🔥 Firebase
+const firebaseConfig = {
+  databaseURL: "https://parkiq-5605f-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+const db = firebase.database();
+
+// 🗺️ Map
+var map = L.map('map').setView([16.5062, 80.6480], 14);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// 📍 Locations
+const locations = {
+  mall: [16.5069, 80.6480],
+  hospital: [16.5115, 80.6370],
+  dmart: [16.4945, 80.6675]
+};
+
+const names = {
+  mall: "PVP Square Mall",
+  hospital: "Ramesh Hospital",
+  dmart: "D-Mart Vijayawada"
+};
+
+let markers = {};
+let userLocation = null;
+let userMarker = null;
+
+// 📏 Distance function (FIXED)
+function getDistanceText(loc) {
+  if (!userLocation) return "📏 Getting location...<br>";
+
+  let d = map.distance(userLocation, loc) / 1000;
+  return `📏 ${d.toFixed(2)} km<br>`;
+}
+
+// 📍 User Location
+navigator.geolocation.watchPosition(
+  pos => {
+    userLocation = [pos.coords.latitude, pos.coords.longitude];
+
+    if (!userMarker) {
+      userMarker = L.marker(userLocation).addTo(map)
+        .bindPopup("yor are here")
+        .openPopup();
+      map.setView(userLocation, 15);
+    } else {
+      userMarker.setLatLng(userLocation);
+    }
+
+    // 🔥 Refresh markers after location update
+    updateAllMarkers();
+  },
+  err => console.log("Location permission denied")
+);
+
+// 📍 Button
+function goToMyLocation() {
+  if (userLocation) {
+    map.setView(userLocation, 15);
+  }
+}
+
+// 🧭 Navigation
+function navigateTo(lat, lng) {
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, "_blank");
+}
+
+// 🧠 Status
+function getStatus(available, total) {
+  let ratio = total > 0 ? available / total : 0;
+
+  if (available === 0) return "🔴 Full";
+  if (ratio < 0.3) return "🟠 Almost Full";
+  return "🟢 Available";
+}
+
+// 🎨 Icon
+function getIcon(available, total) {
+  let ratio = total > 0 ? available / total : 0;
+
+  let color = "red";
+  if (ratio > 0.6) color = "green";
+  else if (ratio > 0.3) color = "yellow";
+
+  return L.icon({
+    iconUrl: `https://maps.google.com/mapfiles/ms/icons/${color}-dot.png`,
+    iconSize: [32, 32]
+  });
+}
+
+// 🔁 Update function (NEW 🔥)
+function updateAllMarkers() {
+  Object.keys(locations).forEach(key => {
+    db.ref(key).once("value").then(snapshot => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      let available = data.available ?? 0;
+      let total = data.total ?? 1;
+
+      markers[key].setIcon(getIcon(available, total));
+
+      let distanceText = getDistanceText(locations[key]);
+
+      markers[key].setPopupContent(`
+        <b style="font-size:16px;">${names[key]}</b><br>
+        🅿 Slots: ${available} / ${total}<br>
+        ${getStatus(available, total)}<br>
+        ${distanceText}
+        <button class="popup-btn" onclick="navigateTo(${locations[key][0]}, ${locations[key][1]})">
+          Navigate
+        </button>
+      `);
+    });
+  });
+}
+
+// 🔁 Firebase LIVE
+Object.keys(locations).forEach(key => {
+
+  markers[key] = L.marker(locations[key]).addTo(map)
+    .bindPopup(`<b>${names[key]}</b><br>Loading...`)
+    .bindTooltip(names[key], {
+      permanent: true,
+      direction: "top"
+    });
+
+  db.ref(key).on("value", snapshot => {
+    updateAllMarkers(); // 🔥 always refresh
+  });
+
+});
+
+</script>
+
+</body>
+</html>
